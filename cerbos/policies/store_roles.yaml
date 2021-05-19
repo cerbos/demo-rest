@@ -1,0 +1,10 @@
+---
+apiVersion: "api.cerbos.dev/v1"
+derived_roles:
+  name: store-roles
+  definitions:
+    - name: order-owner
+      parentRoles: ["customer"]
+      condition:
+        match:
+          expr: request.resource.attr.owner == request.principal.id

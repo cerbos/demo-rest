@@ -1,0 +1,207 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cerbos-sidecar-demo
+  labels:
+    app.kubernetes.io/name: cerbos-sidecar-demo
+    app.kubernetes.io/component: cerbos-sidecar-demo
+    app.kubernetes.io/version: "0.0.1"
+spec:
+  isCA: true
+  secretName: cerbos-sidecar-demo
+  dnsNames:
+    - cerbos-sidecar-demo.default.svc.cluster.local
+    - cerbos-sidecar-demo.default.svc
+    - cerbos-sidecar-demo.default
+    - cerbos-sidecar-demo
+  issuerRef:
+    name: selfsigned-cluster-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cerbos-sidecar-demo-config
+  labels:
+    app.kubernetes.io/name: cerbos-sidecar-demo
+    app.kubernetes.io/component: cerbos
+    app.kubernetes.io/version: "0.0.1"
+data:
+  "config.yaml": |-
+      server:
+        grpcListenAddr: "unix:/sock/cerbos.sock"
+      storage:
+        driver: disk
+        disk:
+          directory: /policies
+          watchForChanges: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cerbos-sidecar-demo-policies
+  labels:
+    app.kubernetes.io/name: cerbos-sidecar-demo
+    app.kubernetes.io/component: cerbos
+    app.kubernetes.io/version: "0.0.1"
+data:
+  "store_roles.yaml": |-
+    apiVersion: "api.cerbos.dev/v1"
+    derived_roles:
+      name: store-roles
+      definitions:
+        - name: order-owner
+          parentRoles: ["customer"]
+          condition:
+            match:
+              expr: request.resource.attr.owner == request.principal.id
+
+  "order_resource.yaml": |-
+    apiVersion: api.cerbos.dev/v1
+    resourcePolicy:
+      version: "default"
+      importDerivedRoles:
+        - store-roles
+      resource: order
+      rules:
+        # Any customer can create an order as long as they are ordering more than one item.
+        - actions: ["CREATE"]
+          roles:
+            - customer
+          effect: EFFECT_ALLOW
+          condition:
+            match:
+              expr: size(R.attr.items) > 1
+
+        # An order can only be viewed by the customer who placed it or a store employee.
+        - actions: ["VIEW"]
+          derivedRoles:
+            - order-owner
+          roles:
+            - employee
+          effect: EFFECT_ALLOW
+
+        # An order can only be updated by the customer who placed it -- provided that the status is PENDING.
+        - actions: ["UPDATE", "DELETE"]
+          derivedRoles:
+            - order-owner
+          effect: EFFECT_ALLOW
+          condition:
+            match:
+              expr: R.attr.status == "PENDING"
+
+        # A picker can update the status of an order iff:
+        # Order status is PENDING and the new status is PICKING
+        # Order status is PICKING and the new status is PICKED
+        - actions: ["UPDATE_STATUS"]
+          roles:
+            - picker
+          effect: EFFECT_ALLOW
+          condition:
+            match:
+              any:
+                of:
+                  - all:
+                      of:
+                        - expr: R.attr.status == "PENDING"
+                        - expr: R.attr.newStatus == "PICKING"
+                  - all:
+                      of:
+                        - expr: R.attr.status == "PICKING"
+                        - expr: R.attr.newStatus == "PICKED"
+
+        # A dispatcher can update the status of an order iff:
+        # Order status is PICKED and the new status is DISPATCHED
+        - actions: ["UPDATE_STATUS"]
+          roles:
+            - dispatcher
+          effect: EFFECT_ALLOW
+          condition:
+            match:
+              all:
+                of:
+                  - expr: R.attr.status == "PICKED"
+                  - expr: R.attr.newStatus == "DISPATCHED"
+
+        # A manager can update the order status unconditionally
+        - actions: ["UPDATE_STATUS"]
+          roles:
+            - manager
+          effect: EFFECT_ALLOW
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerbos-sidecar-demo
+  labels:
+    app.kubernetes.io/name: cerbos-sidecar-demo
+    app.kubernetes.io/component: cerbos-sidecar-demo
+    app.kubernetes.io/version: "0.0.1"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cerbos-sidecar-demo
+      app.kubernetes.io/component: cerbos-sidecar-demo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cerbos-sidecar-demo
+        app.kubernetes.io/component: cerbos-sidecar-demo
+    spec:
+      containers:
+        - name: store
+          image: "ghcr.io/cerbos/demo-rest:latest"
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-listen=:9999"
+            - "-cerbos=unix:/sock/cerbos.sock"
+            - "-tlsCert=/certs/tls.crt"
+            - "-tlsKey=/certs/tls.key"
+          ports:
+            - name: http
+              containerPort: 9999
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTPS
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTPS
+          volumeMounts:
+            - name: sock
+              mountPath: /sock
+            - name: certs
+              mountPath: /certs
+        - name: cerbos
+          image: "pkg.cerbos.dev/containers/cerbos:0.0.1"
+          imagePullPolicy: IfNotPresent
+          args:
+            - "server"
+            - "--config=/config/config.yaml"
+            - "--log-level=INFO"
+          volumeMounts:
+            - name: sock
+              mountPath: /sock
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: policies
+              mountPath: /policies
+      volumes:
+        - name: sock
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: cerbos-sidecar-demo-config
+        - name: certs
+          secret:
+            secretName: cerbos-sidecar-demo
+        - name: policies
+          configMap:
+            name: cerbos-sidecar-demo-policies

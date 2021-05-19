@@ -1,0 +1,60 @@
+---
+name: Release
+on:
+  push:
+    tags:
+      - v*
+jobs:
+  releaseBinaries:
+    name: Release Binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16.x
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        id: qemu
+        uses: docker/setup-qemu-action@v1
+        with:
+          image: tonistiigi/binfmt:latest
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Configure Git for private modules
+        run: echo "machine github.com login ${{ secrets.PRIVATE_REPO_CHECKOUT_TOKEN }} password x-oauth-basic" > $HOME/.netrc
+
+      - name: Login to GHCR
+        run:  echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Login to Artifactory
+        run:  echo "${{ secrets.ARTIFACTORY_PROD_SECRET }}" | docker login cerbos.jfrog.io -u ${{ secrets.ARTIFACTORY_PROD_USERNAME }} --password-stdin
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: GoReleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          args: release --config=.goreleaser.yml --rm-dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACTORY_PROD_USERNAME: ${{ secrets.ARTIFACTORY_PROD_USERNAME }}
+          ARTIFACTORY_PROD_SECRET: ${{ secrets.ARTIFACTORY_PROD_SECRET }}
+          DOCKER_BUILDKIT: 0

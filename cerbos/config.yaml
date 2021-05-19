@@ -1,0 +1,9 @@
+---
+server:
+  grpcListenAddr: "unix:/sock/cerbos-grpc.sock"
+  httpListenAddr: "unix:/sock/cerbos-http.sock"
+storage:
+  driver: disk
+  disk:
+    directory: /data/policies
+    watchForChanges: true

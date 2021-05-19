@@ -1,0 +1,72 @@
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  version: "default"
+  importDerivedRoles:
+    - store-roles
+  resource: order
+  rules:
+    # Any customer can create an order as long as they are ordering more than one item.
+    - actions: ["CREATE"]
+      roles:
+        - customer
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: size(R.attr.items) > 1
+
+    # An order can only be viewed by the customer who placed it or a store employee.
+    - actions: ["VIEW"]
+      derivedRoles:
+        - order-owner
+      roles:
+        - employee
+      effect: EFFECT_ALLOW
+
+    # An order can only be updated by the customer who placed it -- provided that the status is PENDING.
+    - actions: ["UPDATE", "DELETE"]
+      derivedRoles:
+        - order-owner
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: R.attr.status == "PENDING"
+
+    # A picker can update the status of an order iff:
+    # Order status is PENDING and the new status is PICKING
+    # Order status is PICKING and the new status is PICKED
+    - actions: ["UPDATE_STATUS"]
+      roles:
+        - picker
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          any:
+            of:
+              - all:
+                  of:
+                    - expr: R.attr.status == "PENDING"
+                    - expr: R.attr.newStatus == "PICKING"
+              - all:
+                  of:
+                    - expr: R.attr.status == "PICKING"
+                    - expr: R.attr.newStatus == "PICKED"
+
+    # A dispatcher can update the status of an order iff:
+    # Order status is PICKED and the new status is DISPATCHED
+    - actions: ["UPDATE_STATUS"]
+      roles:
+        - dispatcher
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: R.attr.status == "PICKED"
+              - expr: R.attr.newStatus == "DISPATCHED"
+
+    # A manager can update the order status unconditionally
+    - actions: ["UPDATE_STATUS"]
+      roles:
+        - manager
+      effect: EFFECT_ALLOW

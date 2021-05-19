@@ -1,0 +1,25 @@
+version: "3.9"
+services:
+  cerbos:
+    image: pkg.cerbos.dev/containers/cerbos:0.0.1
+    command: ["server", "--config=/data/config.yaml"]
+    volumes:
+      - ./cerbos:/data
+      - shared-tmpfs:/sock
+  demo:
+    image: pkg.cerbos.dev/containers/demo-rest:0.0.1
+    command: ["-cerbos=unix:/sock/cerbos-grpc.sock", "-listen=:9999"]
+    ports:
+      - 9999:9999
+    volumes:
+      - shared-tmpfs:/sock
+    depends_on:
+      - cerbos
+
+volumes:
+  shared-tmpfs:
+    driver: local
+    driver_opts:
+      type: "tmpfs"
+      device: "tmpfs"
+      o: "size=1m,uid=1000,rw"

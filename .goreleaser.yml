@@ -1,0 +1,45 @@
+project_name: demo-rest
+builds:
+  - env:
+      - CGO_ENABLED=0
+      - GOPRIVATE=github.com/cerbos/*
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+archives:
+  - replacements:
+      darwin: Darwin
+      linux: Linux
+      amd64: x86_64
+dockers:
+  - image_templates:
+      - "ghcr.io/cerbos/demo-rest:{{ .Version }}-amd64"
+      - "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}-amd64"
+    goarch: amd64
+    use_buildx: true
+    build_flag_templates:
+      - "--platform=linux/amd64"
+
+  - image_templates:
+      - "ghcr.io/cerbos/demo-rest:{{ .Version }}-arm64"
+      - "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}-arm64"
+    goarch: arm64
+    use_buildx: true
+    build_flag_templates:
+      - "--platform=linux/arm64"
+docker_manifests:
+  - name_template: "ghcr.io/cerbos/demo-rest:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/cerbos/demo-rest:{{ .Version }}-amd64"
+      - "ghcr.io/cerbos/demo-rest:{{ .Version }}-arm64"
+  - name_template: "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}"
+    image_templates:
+      - "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}-amd64"
+      - "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}-arm64"
+checksum:
+  disable: true
+changelog:
+  skip: true

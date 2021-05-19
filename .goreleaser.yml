@@ -21,8 +21,6 @@ dockers:
     use_buildx: true
     build_flag_templates:
       - "--platform=linux/amd64"
-    extra_files:
-      - conf.default.yaml
 
   - image_templates:
       - "ghcr.io/cerbos/demo-rest:{{ .Version }}-arm64"
@@ -31,8 +29,6 @@ dockers:
     use_buildx: true
     build_flag_templates:
       - "--platform=linux/arm64"
-    extra_files:
-      - conf.default.yaml
 docker_manifests:
   - name_template: "ghcr.io/cerbos/demo-rest:{{ .Version }}"
     image_templates:

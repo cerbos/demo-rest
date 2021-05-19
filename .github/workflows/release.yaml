@@ -31,7 +31,9 @@ jobs:
         uses: docker/setup-buildx-action@v1
 
       - name: Configure Git for private modules
-        run: git config --global url."https://charithe:{{ secrets.PRIVATE_REPO_CHECKOUT_TOKEN }}@github.com".insteadOf "https://github.com"
+        env:
+          TOKEN: {{ secrets.PRIVATE_REPO_CHECKOUT_TOKEN }}
+        run: git config --global url."https://charithe:${TOKEN}@github.com".insteadOf "https://github.com"
 
       - name: Login to GHCR
         run:  echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -57,3 +59,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ARTIFACTORY_PROD_USERNAME: ${{ secrets.ARTIFACTORY_PROD_USERNAME }}
           ARTIFACTORY_PROD_SECRET: ${{ secrets.ARTIFACTORY_PROD_SECRET }}
+          TOKEN: {{ secrets.PRIVATE_REPO_CHECKOUT_TOKEN }}

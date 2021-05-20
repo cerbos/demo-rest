@@ -22,8 +22,7 @@ check() {
 
     header "$TITLE"
 
-    echo "curl -i $@"
-    echo ""
+    echo "curl -i -u ${USER}:${USER}sStrongPassword $@"
 
     OUT=$(mktemp)
     HTTP_CODE=$(curl --silent --output "$OUT" --write-out "%{http_code}" -u "${USER}:${USER}sStrongPassword" "$@")

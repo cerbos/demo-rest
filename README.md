@@ -56,24 +56,34 @@ docker-compose up
 <summary><b>Examples</b></summary>
 
 
-```
-=== Adam tries to create an order with a single item
-curl -i -XPUT http://localhost:9999/store/order -d {"items": {"eggs": 12}}
+**Adam tries to create an order with a single item**
 
+```sh
+curl -i -u adam:adamsStrongPassword -XPUT http://localhost:9999/store/order -d {"items": {"eggs": 12}}
+```
+```
 {
   "message": "Operation not allowed"
 }
+```
 
-=== Adam has enough items in the order
-curl -i -XPUT http://localhost:9999/store/order -d {"items": {"eggs": 12, "milk": 1}}
+**Adam has enough items in the order**
 
+```sh
+curl -i -u adam:adamsStrongPassword -XPUT http://localhost:9999/store/order -d {"items": {"eggs": 12, "milk": 1}}
+```
+```
 {
   "orderID": 1
 }
+```
 
-=== Adam can view his own order
-curl -i -XGET http://localhost:9999/store/order/1
+**Adam can view his own order**
 
+```sh
+curl -i -u adam:adamsStrongPassword -XGET http://localhost:9999/store/order/1
+```
+```
 {
   "id": 1,
   "items": {
@@ -83,17 +93,25 @@ curl -i -XGET http://localhost:9999/store/order/1
   "owner": "adam",
   "status": "PENDING"
 }
+```
 
-=== Eve cannot view Adam's order
-curl -i -XGET http://localhost:9999/store/order/1
+**Eve cannot view Adam's order**
 
+```sh
+curl -i -u eve:evesStrongPassword -XGET http://localhost:9999/store/order/1
+```
+```
 {
   "message": "Operation not allowed"
 }
+```
 
-=== Bella can view Adam's order
-curl -i -XGET http://localhost:9999/store/order/1
+**Bella can view Adam's order**
 
+```sh
+curl -i -u bella:bellasStrongPassword -XGET http://localhost:9999/store/order/1
+```
+```
 {
   "id": 1,
   "items": {
@@ -103,104 +121,159 @@ curl -i -XGET http://localhost:9999/store/order/1
   "owner": "adam",
   "status": "PENDING"
 }
+```
 
-=== Adam can update his pending order
-curl -i -XPOST http://localhost:9999/store/order/1 -d {"items": {"eggs": 24, "milk": 1, "bread": 1}}
+**Adam can update his pending order**
 
+```sh
+curl -i -u adam:adamsStrongPassword -XPOST http://localhost:9999/store/order/1 -d {"items": {"eggs": 24, "milk": 1, "bread": 1}}
+```
+```
 {
   "message": "Order updated"
 }
+```
 
-=== Charlie cannot set order status to PICKED because it is not in PICKING status
-curl -i -XPOST http://localhost:9999/backoffice/order/1/status/PICKED
+**Charlie cannot set order status to PICKED because it is not in PICKING status**
 
+```sh
+curl -i -u charlie:charliesStrongPassword -XPOST http://localhost:9999/backoffice/order/1/status/PICKED
+```
+```
 {
   "message": "Operation not allowed"
 }
+```
 
-=== Charlie can set order status to PICKING
-curl -i -XPOST http://localhost:9999/backoffice/order/1/status/PICKING
+**Charlie can set order status to PICKING**
 
+```sh
+curl -i -u charlie:charliesStrongPassword -XPOST http://localhost:9999/backoffice/order/1/status/PICKING
+```
+```
 {
   "message": "Order status updated"
 }
+```
 
-=== Adam cannot update his order because it is not pending
-curl -i -XPOST http://localhost:9999/store/order/1 -d {"items": {"eggs": 24, "milk": 1, "bread": 1}}
+**Adam cannot update his order because it is not pending**
 
+```sh
+curl -i -u adam:adamsStrongPassword -XPOST http://localhost:9999/store/order/1 -d {"items": {"eggs": 24, "milk": 1, "bread": 1}}
+```
+```
 {
   "message": "Operation not allowed"
 }
+```
 
-=== Florence can add an item to the bakery aisle
-curl -i -XPUT http://localhost:9999/backoffice/inventory -d {"id":"white_bread", "aisle":"bakery", "price":110}
+**Florence can add an item to the bakery aisle**
 
+```sh
+curl -i -u florence:florencesStrongPassword -XPUT http://localhost:9999/backoffice/inventory -d {"id":"white_bread", "aisle":"bakery", "price":110}
+```
+```
 {
   "message": "Item added"
 }
+```
 
-=== Florence cannot add an item to the dairy aisle
-curl -i -XPUT http://localhost:9999/backoffice/inventory -d {"id":"skimmed_milk", "aisle":"dairy", "price":120}
+**Florence cannot add an item to the dairy aisle**
 
+```sh
+curl -i -u florence:florencesStrongPassword -XPUT http://localhost:9999/backoffice/inventory -d {"id":"skimmed_milk", "aisle":"dairy", "price":120}
+```
+```
 {
   "message": "Operation not allowed"
 }
+```
 
-=== Florence can increase the price of an item up to 10%
-curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":120}
+**Florence can increase the price of an item up to 10%**
 
+```sh
+curl -i -u florence:florencesStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":120}
+```
+```
 {
   "message": "Item updated"
 }
+```
 
-=== Florence cannot increase the price of an item more than 10%
-curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":220}
+**Florence cannot increase the price of an item more than 10%**
 
+```sh
+curl -i -u florence:florencesStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":220}
+```
+```
 {
   "message": "Operation not allowed"
 }
+```
 
-=== Bella can increase the price of an item by any amount
-curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":220}
+**Bella can increase the price of an item by any amount**
 
+```sh
+curl -i -u bella:bellasStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":220}
+```
+```
 {
   "message": "Item updated"
 }
+```
 
-=== Harry can replenish stock
-curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread/replenish/10
+**Harry can replenish stock**
 
+```sh
+curl -i -u harry:harrysStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread/replenish/10
+```
+```
 {
   "newQuantity": 10
 }
+```
 
-=== Harry cannot pick stock
-curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread/pick/1
+**Harry cannot pick stock**
 
+```sh
+curl -i -u harry:harrysStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread/pick/1
+```
+```
 {
   "message": "Operation not allowed"
 }
+```
 
-=== Charlie can pick stock
-curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread/pick/1
+**Charlie can pick stock**
 
+```sh
+curl -i -u charlie:charliesStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread/pick/1
+```
+```
 {
   "newQuantity": 9
 }
+```
 
-=== Charlie cannot replenish stock
-curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread/replenish/10
+**Charlie cannot replenish stock**
 
+```sh
+curl -i -u charlie:charliesStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread/replenish/10
+```
+```
 {
   "message": "Operation not allowed"
 }
+```
 
-=== Bella can delete an item from inventory
-curl -i -XDELETE http://localhost:9999/backoffice/inventory/white_bread
+**Bella can delete an item from inventory**
 
+```sh
+curl -i -u bella:bellasStrongPassword -XDELETE http://localhost:9999/backoffice/inventory/white_bread
+```
+```
 {
   "message": "Item deleted"
 }
 ```
-
 </details>

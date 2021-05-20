@@ -1,0 +1,49 @@
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  version: "default"
+  importDerivedRoles:
+    - store-roles
+  resource: inventory
+  rules:
+    # A manager can do anything.
+    - actions: ["*"]
+      roles:
+        - manager
+      effect: EFFECT_ALLOW
+    
+    # A buying manager can create or delete the items that they are responsible for.
+    - actions: ["CREATE", "DELETE"]
+      derivedRoles:
+        - buying-manager
+      effect: EFFECT_ALLOW
+
+    # A buying manager can update the items that they are responsible for provided that the new price is not more than 10% of existing.
+    - actions: ["UPDATE"]
+      derivedRoles:
+        - buying-manager
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          all:
+            of:
+              - expr: double(R.attr.newPrice) <= double(R.attr.price) * 1.1
+              - expr: double(R.attr.newPrice) >= double(R.attr.price) * 0.9
+
+    # Items can be viewed by any employee.
+    - actions: ["VIEW"]
+      roles:
+        - employee
+      effect: EFFECT_ALLOW
+
+    # Only stockers can replenish stock levels.
+    - actions: ["REPLENISH"]
+      roles:
+        - stocker
+      effect: EFFECT_ALLOW
+
+    # Only pickers can pick items.
+    - actions: ["PICK"]
+      roles:
+        - picker
+      effect: EFFECT_ALLOW

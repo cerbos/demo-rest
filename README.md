@@ -16,9 +16,22 @@ The example application is a simple REST API exposed by a fictional e-commmerce 
 | `POST /store/order/{orderID}` | Update the order | Customers can update their own orders as long as the status is `PENDING` |
 | `DELETE /store/order/{orderID}` | Cancel the order | Customers can cancel their own orders as long the status is `PENDING` |
 | `POST /backoffice/order/{orderID}/status/{status}` | Update order status | Pickers can change status from `PENDING` to `PICKING` and `PICKING` to `PICKED`. Dispatchers can change status from `PICKED` to `DISPATCHED`. Managers can change the status to anything. | 
+| `PUT /backoffice/inventory` | Add new item to inventory | Only buyers who are in charge of that category or managers can add new items |
+| `GET /backoffice/inventory/{itemID}` | View item | Any employee can view inventory items |
+| `POST /backoffice/inventory/{itemID}` | Update item | Buyers who are in charge of that category can update the item provided that the new price is within 10% of the previous price. Managers can update without any restrictions |
+| `DELETE /backoffice/inventory/{itemID}` | Remove item | Only buyers who are in charge of that category or managers can remove items |
+| `POST /backoffice/inventory/{itemID}/replenish/{quantity}` | Replenish stock | Only stockers and managers can replenish stock |
+| `POST /backoffice/inventory/{itemID}/pick/{quantity}` | Pick stock | Only pickers and managers can pick stock |
 
 
-The users are:
+The Cerbos policies for the service are in the `cerbos/policies` directory. 
+
+- `store_roles.yaml`: A derived roles definition which defines `order-owner` derived role to identify when someone is accessing their own order.
+- `order_resource.yaml`: A resource policy for the `order` resource encapsulating the rules listed in the table above.
+- `inventory_resource.yaml`: A resource policy for the `inventory` resource encapsulating the rules listed in the table above.
+
+
+Available users are:
 
 | Username | Password | Roles |
 | -------- | -------- | ----- |
@@ -27,12 +40,10 @@ The users are:
 | charlie  | charliesStrongPassword | customer, employee, picker |
 | diana    | dianasStrongPassword   | customer, employee, dispatcher |
 | eve      | evesStrongPassword     | customer
-
-
-The Cerbos policies for the service are in the `cerbos/policies` directory. 
-
-- `store_roles.yaml`: A derived roles definition which defines `order-owner` derived role to identify when someone is accessing their own order.
-- `order_resource.yaml`: A resource policy for the `order` resource encapsulating the rules listed in the first table above.
+| florence | florencesStrongPassword| customer, employee, buyer (bakery) |
+| george   | georgesStrongPassword  | customer, employee, buyer (dairy) |
+| harry    | harrysStrongPassword   | customer, employee, stocker |
+| jenny    | jennysStrongPassword   | customer, employee, stocker |
 
 
 Use `docker-compose` to start the demo. Here Cerbos is configured to run as a sidecar to the application and communicate over a Unix domain socket.
@@ -41,61 +52,30 @@ Use `docker-compose` to start the demo. Here Cerbos is configured to run as a si
 docker-compose up
 ```
 
-Examples
---------
-
 <details>
-<summary><b>Adam tries to create an order with a single item -- which is not allowed by the policy</b></summary>
+<summary><b>Examples</b></summary>
 
-
-```sh
-curl -i -XPUT localhost:9999/store/order -u adam:adamsStrongPassword -d '{"items": {"eggs": 12}}'
-```
 
 ```
-HTTP/1.1 403 Forbidden
-Content-Type: application/json
+=== Adam tries to create an order with a single item
+curl -i -XPUT http://localhost:9999/store/order -d {"items": {"eggs": 12}}
 
 {
   "message": "Operation not allowed"
 }
-```
 
-</details>
-
-
-<details>
-<summary><b>Adam now has enough items in his order</b></summary>
-
-```sh
-curl -i -XPUT localhost:9999/store/order -u adam:adamsStrongPassword -d '{"items": {"eggs": 12, "milk": 1}}'
-```
-
-```
-HTTP/1.1 201 Created
-Content-Type: application/json
+=== Adam has enough items in the order
+curl -i -XPUT http://localhost:9999/store/order -d {"items": {"eggs": 12, "milk": 1}}
 
 {
-  "orderID": 2
+  "orderID": 1
 }
-```
 
-</details>
-
-
-<details>
-<summary><b>Adam can view his own order</b></summary>
-
-```sh
-curl -i -XGET localhost:9999/store/order/2 -u adam:adamsStrongPassword
-```
-
-```
-HTTP/1.1 200 OK
-Content-Type: application/json
+=== Adam can view his own order
+curl -i -XGET http://localhost:9999/store/order/1
 
 {
-  "id": 2,
+  "id": 1,
   "items": {
     "eggs": 12,
     "milk": 1
@@ -103,43 +83,19 @@ Content-Type: application/json
   "owner": "adam",
   "status": "PENDING"
 }
-```
 
-</details>
-
-
-<details>
-<summary><b>Eve cannot view Adam’s order</b></summary>
-
-```sh
-curl -i -XGET localhost:9999/store/order/2 -u eve:evesStrongPassword
-```
-
-```
-HTTP/1.1 403 Forbidden
-Content-Type: application/json
+=== Eve cannot view Adam's order
+curl -i -XGET http://localhost:9999/store/order/1
 
 {
   "message": "Operation not allowed"
 }
-```
 
-</details>
-
-
-<details>
-<summary><b>Bella can view Adam’s order because she is an employee</b></summary>
-
-```sh
-curl -i -XGET localhost:9999/store/order/2 -u bella:bellasStrongPassword
-```
-
-```
-HTTP/1.1 200 OK
-Content-Type: application/json
+=== Bella can view Adam's order
+curl -i -XGET http://localhost:9999/store/order/1
 
 {
-  "id": 2,
+  "id": 1,
   "items": {
     "eggs": 12,
     "milk": 1
@@ -147,90 +103,103 @@ Content-Type: application/json
   "owner": "adam",
   "status": "PENDING"
 }
-```
 
-</details>
+=== Adam can update his pending order
+curl -i -XPOST http://localhost:9999/store/order/1 -d {"items": {"eggs": 24, "milk": 1, "bread": 1}}
 
+{
+  "message": "Order updated"
+}
 
-<details>
-<summary><b>Adam can update his order because it is still PENDING</b></summary>
-
-```sh
-curl -i -XPOST localhost:9999/store/order/2 -u adam:adamsStrongPassword -d '{"items": {"eggs": 24, "milk": 1, "bread": 1}}'
-```
-
-```
-HTTP/1.1 200 OK
-```
-
-</details>
-
-
-<details>
-<summary><b>Charlie accidentally tries to set order status to PICKED instead of PICKING</b></summary>
-
-```sh
-curl -i -XPOST localhost:9999/backoffice/order/2/status/PICKED -u charlie:charliesStrongPassword
-```
-
-```
-HTTP/1.1 403 Forbidden
-Content-Type: application/json
+=== Charlie cannot set order status to PICKED because it is not in PICKING status
+curl -i -XPOST http://localhost:9999/backoffice/order/1/status/PICKED
 
 {
   "message": "Operation not allowed"
 }
-```
 
-</details>
+=== Charlie can set order status to PICKING
+curl -i -XPOST http://localhost:9999/backoffice/order/1/status/PICKING
 
+{
+  "message": "Order status updated"
+}
 
-<details>
-<summary><b>Charlie starts picking the order</b></summary>
-
-```sh
-curl -i -XPOST localhost:9999/backoffice/order/2/status/PICKING -u charlie:charliesStrongPassword
-```
-
-```
-HTTP/1.1 200 OK
-```
-
-</details>
-
-
-<details>
-<summary><b>Adam can no longer edit his order because the status has changed</b></summary>
-
-```sh
-curl -i -XDELETE localhost:9999/store/order/2 -u adam:adamsStrongPassword
-```
-
-```
-HTTP/1.1 403 Forbidden
-Content-Type: application/json
+=== Adam cannot update his order because it is not pending
+curl -i -XPOST http://localhost:9999/store/order/1 -d {"items": {"eggs": 24, "milk": 1, "bread": 1}}
 
 {
   "message": "Operation not allowed"
 }
-```
 
-</details>
+=== Florence can add an item to the bakery aisle
+curl -i -XPUT http://localhost:9999/backoffice/inventory -d {"id":"white_bread", "aisle":"bakery", "price":110}
 
+{
+  "message": "Item added"
+}
 
-<details>
-<summary><b>Diana cannot dispatch the order because the status is still PICKING</b></summary>
-
-```sh
-curl -i -XPOST localhost:9999/backoffice/order/2/status/DISPATCHED -u diana:dianasStrongPassword
-```
-
-```
-HTTP/1.1 403 Forbidden
-Content-Type: application/json
+=== Florence cannot add an item to the dairy aisle
+curl -i -XPUT http://localhost:9999/backoffice/inventory -d {"id":"skimmed_milk", "aisle":"dairy", "price":120}
 
 {
   "message": "Operation not allowed"
+}
+
+=== Florence can increase the price of an item up to 10%
+curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":120}
+
+{
+  "message": "Item updated"
+}
+
+=== Florence cannot increase the price of an item more than 10%
+curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":220}
+
+{
+  "message": "Operation not allowed"
+}
+
+=== Bella can increase the price of an item by any amount
+curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":220}
+
+{
+  "message": "Item updated"
+}
+
+=== Harry can replenish stock
+curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread/replenish/10
+
+{
+  "newQuantity": 10
+}
+
+=== Harry cannot pick stock
+curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread/pick/1
+
+{
+  "message": "Operation not allowed"
+}
+
+=== Charlie can pick stock
+curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread/pick/1
+
+{
+  "newQuantity": 9
+}
+
+=== Charlie cannot replenish stock
+curl -i -XPOST http://localhost:9999/backoffice/inventory/white_bread/replenish/10
+
+{
+  "message": "Operation not allowed"
+}
+
+=== Bella can delete an item from inventory
+curl -i -XDELETE http://localhost:9999/backoffice/inventory/white_bread
+
+{
+  "message": "Item deleted"
 }
 ```
 

@@ -22,9 +22,32 @@ type principalKeyType struct{}
 
 var principalKey = principalKeyType{}
 
+const (
+	inventoryResource = "inventory"
+	orderResource     = "order"
+)
+
+// toOrderResource creates a Cerbos resource from the given order.
+func toOrderResource(o db.Order) *cerbos.Resource {
+	return cerbos.NewResource(orderResource, strconv.FormatUint(o.ID, 10)).
+		WithAttr("items", o.Items).
+		WithAttr("status", o.Status).
+		WithAttr("owner", o.Owner)
+}
+
+// toInventoryResource creates a Cerbos resource from the given inventory record.
+func toInventoryResource(i db.InventoryRecord) *cerbos.Resource {
+	return cerbos.NewResource(inventoryResource, i.ID).
+		WithAttr("aisle", i.Aisle).
+		WithAttr("price", i.Price).
+		WithAttr("quantity", i.Quantity)
+}
+
+// Service implements the store API.
 type Service struct {
-	cerbos cerbos.Client
-	orders *db.OrderDB
+	cerbos    cerbos.Client
+	orders    *db.OrderDB
+	inventory *db.Inventory
 }
 
 func New(cerbosAddr string) (*Service, error) {
@@ -33,7 +56,7 @@ func New(cerbosAddr string) (*Service, error) {
 		return nil, err
 	}
 
-	return &Service{cerbos: c, orders: db.NewOrderDB()}, nil
+	return &Service{cerbos: c, orders: db.NewOrderDB(), inventory: db.NewInventory()}, nil
 }
 
 func (s *Service) Handler() http.Handler {
@@ -49,11 +72,20 @@ func (s *Service) Handler() http.Handler {
 
 	r.HandleFunc("/backoffice/order/{orderID}/status/{status}", s.handleBackofficeOrderUpdate).Methods(http.MethodPost)
 
+	r.HandleFunc("/backoffice/inventory", s.handleInventoryAdd).Methods(http.MethodPut)
+	r.HandleFunc("/backoffice/inventory/{itemID}", s.handleInventoryUpdate).Methods(http.MethodPost)
+	r.HandleFunc("/backoffice/inventory/{itemID}", s.handleInventoryDelete).Methods(http.MethodDelete)
+	r.HandleFunc("/backoffice/inventory/{itemID}", s.handleInventoryGet).Methods(http.MethodGet)
+	r.HandleFunc("/backoffice/inventory/{itemID}/pick/{quantity}", s.handleInventoryPick).Methods(http.MethodPost)
+	r.HandleFunc("/backoffice/inventory/{itemID}/replenish/{quantity}", s.handleInventoryReplenish).Methods(http.MethodPost)
+
 	r.HandleFunc("/health", s.handleHealth)
 
 	return handlers.LoggingHandler(log.Writer(), r)
 }
 
+// authenticationMiddleware handles the verification of username and password,
+// creates a Cerbos principal and adds it to the request context.
 func authenticationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get the basic auth credentials from the request.
@@ -94,9 +126,36 @@ func retrievePrincipal(username, password string, r *http.Request) (*cerbos.Prin
 	// Create a new principal object with information from the database and the request.
 	principal := cerbos.NewPrincipal(username).
 		WithRoles(record.Roles...).
+		WithAttr("aisles", record.Aisles).
 		WithAttr("ipAddress", r.RemoteAddr)
 
 	return principal, nil
+}
+
+// isAllowed is a utility function to check each action against a Cerbos policy.
+func (s *Service) isAllowed(ctx context.Context, resource *cerbos.Resource, action string) bool {
+	principal := getPrincipal(ctx)
+	if principal == nil {
+		return false
+	}
+
+	allowed, err := s.cerbos.IsAllowed(ctx, principal, resource, action)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		return false
+	}
+
+	return allowed
+}
+
+// getPrincipal retrieves the principal stored in the context by the authentication middleware.
+func getPrincipal(ctx context.Context) *cerbos.Principal {
+	p := ctx.Value(principalKey)
+	if p == nil {
+		return nil
+	}
+
+	return p.(*cerbos.Principal)
 }
 
 func (s *Service) handleOrderCreate(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +168,7 @@ func (s *Service) handleOrderCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resource := cerbos.NewResource("order", "new").WithAttr("items", order.Items)
+	resource := cerbos.NewResource(orderResource, "new").WithAttr("items", order.Items)
 	if !s.isAllowed(r.Context(), resource, "CREATE") {
 		writeMessage(w, http.StatusForbidden, "Operation not allowed")
 		return
@@ -129,11 +188,11 @@ func (s *Service) handleOrderUpdate(w http.ResponseWriter, r *http.Request) {
 	order, err := s.retrieveOrder(r)
 	if err != nil {
 		log.Printf("ERROR: %v", err)
-		writeMessage(w, http.StatusBadRequest, "Bad request")
+		writeMessage(w, http.StatusBadRequest, "Order not found")
 		return
 	}
 
-	if !s.isAllowed(r.Context(), toResource(order), "UPDATE") {
+	if !s.isAllowed(r.Context(), toOrderResource(order), "UPDATE") {
 		writeMessage(w, http.StatusForbidden, "Operation not allowed")
 		return
 	}
@@ -150,6 +209,8 @@ func (s *Service) handleOrderUpdate(w http.ResponseWriter, r *http.Request) {
 		writeMessage(w, http.StatusInternalServerError, "Failed to update order")
 		return
 	}
+
+	writeMessage(w, http.StatusOK, "Order updated")
 }
 
 func (s *Service) handleOrderDelete(w http.ResponseWriter, r *http.Request) {
@@ -158,11 +219,11 @@ func (s *Service) handleOrderDelete(w http.ResponseWriter, r *http.Request) {
 	order, err := s.retrieveOrder(r)
 	if err != nil {
 		log.Printf("ERROR: %v", err)
-		writeMessage(w, http.StatusBadRequest, "Bad request")
+		writeMessage(w, http.StatusBadRequest, "Order not found")
 		return
 	}
 
-	if !s.isAllowed(r.Context(), toResource(order), "DELETE") {
+	if !s.isAllowed(r.Context(), toOrderResource(order), "DELETE") {
 		writeMessage(w, http.StatusForbidden, "Operation not allowed")
 		return
 	}
@@ -172,6 +233,8 @@ func (s *Service) handleOrderDelete(w http.ResponseWriter, r *http.Request) {
 		writeMessage(w, http.StatusInternalServerError, "Failed to delete order")
 		return
 	}
+
+	writeMessage(w, http.StatusOK, "Order cancelled")
 }
 
 func (s *Service) handleOrderView(w http.ResponseWriter, r *http.Request) {
@@ -180,11 +243,11 @@ func (s *Service) handleOrderView(w http.ResponseWriter, r *http.Request) {
 	order, err := s.retrieveOrder(r)
 	if err != nil {
 		log.Printf("ERROR: %v", err)
-		writeMessage(w, http.StatusBadRequest, "Bad request")
+		writeMessage(w, http.StatusBadRequest, "Order not found")
 		return
 	}
 
-	if !s.isAllowed(r.Context(), toResource(order), "VIEW") {
+	if !s.isAllowed(r.Context(), toOrderResource(order), "VIEW") {
 		writeMessage(w, http.StatusForbidden, "Operation not allowed")
 		return
 	}
@@ -198,14 +261,14 @@ func (s *Service) handleBackofficeOrderUpdate(w http.ResponseWriter, r *http.Req
 	order, err := s.retrieveOrder(r)
 	if err != nil {
 		log.Printf("ERROR: %v", err)
-		writeMessage(w, http.StatusBadRequest, "Bad request")
+		writeMessage(w, http.StatusBadRequest, "Order not found")
 		return
 	}
 
 	vars := mux.Vars(r)
 	status := vars["status"]
 
-	resource := toResource(order).WithAttr("newStatus", status)
+	resource := toOrderResource(order).WithAttr("newStatus", status)
 	if !s.isAllowed(r.Context(), resource, "UPDATE_STATUS") {
 		writeMessage(w, http.StatusForbidden, "Operation not allowed")
 		return
@@ -216,6 +279,8 @@ func (s *Service) handleBackofficeOrderUpdate(w http.ResponseWriter, r *http.Req
 		writeMessage(w, http.StatusInternalServerError, "Failed to update order")
 		return
 	}
+
+	writeMessage(w, http.StatusOK, "Order status updated")
 }
 
 func (s *Service) retrieveOrder(r *http.Request) (db.Order, error) {
@@ -229,46 +294,190 @@ func (s *Service) retrieveOrder(r *http.Request) (db.Order, error) {
 	return s.orders.Get(orderID)
 }
 
-func (s *Service) isAllowed(ctx context.Context, resource *cerbos.Resource, action string) bool {
-	principal := getPrincipal(ctx)
-	if principal == nil {
-		return false
-	}
+func (s *Service) handleInventoryAdd(w http.ResponseWriter, r *http.Request) {
+	defer cleanup(r)
 
-	allowed, err := s.cerbos.IsAllowed(ctx, principal, resource, action)
+	item, err := readInventoryItem(r.Body)
 	if err != nil {
 		log.Printf("ERROR: %v", err)
-		return false
+		writeMessage(w, http.StatusBadRequest, "Bad request")
+		return
 	}
 
-	return allowed
+	resource := cerbos.NewResource(inventoryResource, "new").WithAttr("aisle", item.Aisle)
+	if !s.isAllowed(r.Context(), resource, "CREATE") {
+		writeMessage(w, http.StatusForbidden, "Operation not allowed")
+		return
+	}
+
+	if err := s.inventory.Add(item); err != nil {
+		log.Printf("ERROR: %v", err)
+		writeMessage(w, http.StatusBadRequest, "Bad request")
+		return
+	}
+
+	writeMessage(w, http.StatusCreated, "Item added")
+}
+
+func (s *Service) handleInventoryUpdate(w http.ResponseWriter, r *http.Request) {
+	defer cleanup(r)
+
+	record, err := s.retrieveInventoryRecord(r)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		writeMessage(w, http.StatusBadRequest, "No such item")
+		return
+	}
+
+	item, err := readInventoryItem(r.Body)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		writeMessage(w, http.StatusBadRequest, "Bad request")
+		return
+	}
+
+	resource := toInventoryResource(record).WithAttr("newAisle", item.Aisle).WithAttr("newPrice", item.Price)
+	if !s.isAllowed(r.Context(), resource, "UPDATE") {
+		writeMessage(w, http.StatusForbidden, "Operation not allowed")
+		return
+	}
+
+	if err := s.inventory.Update(item); err != nil {
+		log.Printf("ERROR: %v", err)
+		writeMessage(w, http.StatusInternalServerError, "Failed to update item")
+		return
+	}
+
+	writeMessage(w, http.StatusOK, "Item updated")
+}
+
+func (s *Service) handleInventoryDelete(w http.ResponseWriter, r *http.Request) {
+	defer cleanup(r)
+
+	record, err := s.retrieveInventoryRecord(r)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		writeMessage(w, http.StatusBadRequest, "No such item")
+		return
+	}
+
+	resource := toInventoryResource(record)
+	if !s.isAllowed(r.Context(), resource, "DELETE") {
+		writeMessage(w, http.StatusForbidden, "Operation not allowed")
+		return
+	}
+
+	if err := s.inventory.Delete(record.ID); err != nil {
+		log.Printf("ERROR: %v", err)
+		writeMessage(w, http.StatusInternalServerError, "Failed to delete item")
+		return
+	}
+
+	writeMessage(w, http.StatusOK, "Item deleted")
+}
+
+func (s *Service) handleInventoryGet(w http.ResponseWriter, r *http.Request) {
+	defer cleanup(r)
+
+	record, err := s.retrieveInventoryRecord(r)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		writeMessage(w, http.StatusBadRequest, "No such item")
+		return
+	}
+
+	resource := toInventoryResource(record)
+	if !s.isAllowed(r.Context(), resource, "VIEW") {
+		writeMessage(w, http.StatusForbidden, "Operation not allowed")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, record)
+}
+
+func (s *Service) handleInventoryPick(w http.ResponseWriter, r *http.Request) {
+	defer cleanup(r)
+
+	record, err := s.retrieveInventoryRecord(r)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		writeMessage(w, http.StatusBadRequest, "No such item")
+		return
+	}
+
+	vars := mux.Vars(r)
+
+	pickQty, err := strconv.Atoi(vars["quantity"])
+	if err != nil || pickQty < 1 {
+		writeMessage(w, http.StatusBadRequest, "Invalid quantity")
+		return
+	}
+
+	resource := toInventoryResource(record).WithAttr("pickQuantity", pickQty)
+	fmt.Printf("%+v\n", resource)
+	if !s.isAllowed(r.Context(), resource, "PICK") {
+		writeMessage(w, http.StatusForbidden, "Operation not allowed")
+		return
+	}
+
+	newQty, err := s.inventory.UpdateQuantity(record.ID, -pickQty)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		writeMessage(w, http.StatusInternalServerError, "Failed to update item")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, struct {
+		NewQuantity int `json:"newQuantity"`
+	}{NewQuantity: newQty})
+}
+
+func (s *Service) handleInventoryReplenish(w http.ResponseWriter, r *http.Request) {
+	defer cleanup(r)
+
+	record, err := s.retrieveInventoryRecord(r)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		writeMessage(w, http.StatusBadRequest, "No such item")
+		return
+	}
+
+	vars := mux.Vars(r)
+
+	qty, err := strconv.Atoi(vars["quantity"])
+	if err != nil || qty < 1 {
+		writeMessage(w, http.StatusBadRequest, "Invalid quantity")
+		return
+	}
+
+	resource := toInventoryResource(record).WithAttr("newQuantity", qty)
+	if !s.isAllowed(r.Context(), resource, "REPLENISH") {
+		writeMessage(w, http.StatusForbidden, "Operation not allowed")
+		return
+	}
+
+	newQty, err := s.inventory.UpdateQuantity(record.ID, qty)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		writeMessage(w, http.StatusInternalServerError, "Failed to update item")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, struct {
+		NewQuantity int `json:"newQuantity"`
+	}{NewQuantity: newQty})
+}
+
+func (s *Service) retrieveInventoryRecord(r *http.Request) (db.InventoryRecord, error) {
+	vars := mux.Vars(r)
+
+	return s.inventory.GetItem(vars["itemID"])
 }
 
 func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 	defer cleanup(r)
 
 	fmt.Fprintln(w, "OK")
-}
-
-type genericResponse struct {
-	Message string `json:"message"`
-}
-
-func toResource(o db.Order) *cerbos.Resource {
-	return cerbos.NewResource("order", strconv.FormatUint(o.ID, 10)).
-		WithAttr("items", o.Items).
-		WithAttr("status", o.Status).
-		WithAttr("owner", o.Owner)
-}
-
-func getPrincipal(ctx context.Context) *cerbos.Principal {
-	// Get the principal stored in the context by the authentication middleware.
-	p := ctx.Value(principalKey)
-	if p == nil {
-		return nil
-	}
-
-	return p.(*cerbos.Principal)
 }
 
 func cleanup(r *http.Request) {
@@ -285,6 +494,19 @@ func readOrder(r io.Reader) (db.CustomerOrder, error) {
 	err := dec.Decode(&order)
 
 	return order, err
+}
+
+func readInventoryItem(r io.Reader) (db.InventoryItem, error) {
+	dec := json.NewDecoder(r)
+
+	var item db.InventoryItem
+	err := dec.Decode(&item)
+
+	return item, err
+}
+
+type genericResponse struct {
+	Message string `json:"message"`
 }
 
 func writeMessage(w http.ResponseWriter, code int, msg string) {

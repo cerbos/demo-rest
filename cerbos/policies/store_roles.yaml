@@ -8,3 +8,9 @@ derived_roles:
       condition:
         match:
           expr: request.resource.attr.owner == request.principal.id
+
+    - name: buying-manager
+      parentRoles: ["buyer"]
+      condition:
+        match:
+          expr: request.resource.attr.aisle in request.principal.attr.aisles

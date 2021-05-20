@@ -1,3 +1,4 @@
 .PHONY: build
 build:
-	@ goreleaser --config=.goreleaser.yml --snapshot --skip-publish --rm-dist
+	@ goreleaser --config=.goreleaser-dev.yml --snapshot --skip-publish --rm-dist
+

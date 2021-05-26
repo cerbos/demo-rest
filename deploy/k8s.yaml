@@ -228,7 +228,7 @@ spec:
             - name: certs
               mountPath: /certs
         - name: cerbos
-          image: "pkg.cerbos.dev/containers/cerbos:0.0.2-SNAPSHOT1"
+          image: "pkg.cerbos.dev/containers/cerbos:0.0.2-alpha.1"
           imagePullPolicy: IfNotPresent
           args:
             - "server"

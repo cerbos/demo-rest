@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   cerbos:
-    image: pkg.cerbos.dev/containers/cerbos:0.0.2-SNAPSHOT1
+    image: pkg.cerbos.dev/containers/cerbos:0.0.2-alpha.1
     command: ["server", "--config=/data/config.yaml"]
     volumes:
       - ./cerbos:/data

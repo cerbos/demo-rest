@@ -7,7 +7,7 @@ services:
       - ./cerbos:/data
       - shared-tmpfs:/sock
   demo:
-    image: pkg.cerbos.dev/containers/demo-rest:0.2.1
+    image: pkg.cerbos.dev/containers/demo-rest:0.0.2
     command: ["-cerbos=unix:/sock/cerbos-grpc.sock", "-listen=:9999"]
     ports:
       - 9999:9999

@@ -2,7 +2,6 @@ project_name: demo-rest
 builds:
   - env:
       - CGO_ENABLED=0
-      - GOPRIVATE=github.com/cerbos/*
     goos:
       - linux
       - darwin

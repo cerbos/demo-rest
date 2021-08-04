@@ -2,7 +2,6 @@ project_name: demo-rest
 builds:
   - env:
       - CGO_ENABLED=0
-      - GOPRIVATE=github.com/cerbos/*
     goos:
       - linux
       - darwin
@@ -19,7 +18,7 @@ dockers:
       - "ghcr.io/cerbos/demo-rest:{{ .Version }}-amd64"
       - "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}-amd64"
     goarch: amd64
-    use_buildx: true
+    use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
 
@@ -27,7 +26,7 @@ dockers:
       - "ghcr.io/cerbos/demo-rest:{{ .Version }}-arm64"
       - "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}-arm64"
     goarch: arm64
-    use_buildx: true
+    use: buildx
     build_flag_templates:
       - "--platform=linux/arm64"
 docker_manifests:

@@ -1,13 +1,13 @@
 version: "3.9"
 services:
   cerbos:
-    image: pkg.cerbos.dev/containers/cerbos:0.0.2-alpha.1
+    image: ghcr.io/cerbos/cerbos:0.4.0
     command: ["server", "--config=/data/config.yaml"]
     volumes:
       - ./cerbos:/data
       - shared-tmpfs:/sock
   demo:
-    image: pkg.cerbos.dev/containers/demo-rest:0.0.2
+    image: ghcr.io/cerbos/demo-rest:0.2.0
     command: ["-cerbos=unix:/sock/cerbos-grpc.sock", "-listen=:9999"]
     ports:
       - 9999:9999

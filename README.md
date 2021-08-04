@@ -4,6 +4,26 @@ Securing a REST API with Cerbos
 This project demonstrates how to secure a REST API using Cerbos policies. It also shows how to run Cerbos as a sidecar.
 
 
+How it works
+------------
+
+HTTP middleware checks the username and password sent with each request against the user database and builds a Cerbos principal object containing roles and attributes.
+
+```go
+principal := cerbos.NewPrincipal(username).
+    WithRoles(record.Roles...).
+    WithAttr("aisles", record.Aisles).
+    WithAttr("ipAddress", r.RemoteAddr)
+```
+
+Checking access is as simple as making a call to Cerbos PDP.
+
+```go
+resource := cerbos.NewResource("inventory", item.ID).WithAttr("aisle", item.Aisle)
+allowed, err := cerbos.IsAllowed(ctx, principal, resource, "DELETE")
+```
+
+
 The Store API
 -------------
 
@@ -277,3 +297,11 @@ curl -i -u bella:bellasStrongPassword -XDELETE http://localhost:9999/backoffice/
 }
 ```
 </details>
+
+
+Get help
+--------
+
+- Visit the [Cerbos website](https://cerbos.dev)
+- [Join the Cerbos community on Slack](http://go.cerbos.io/slack)
+- Email us at help@cerbos.dev

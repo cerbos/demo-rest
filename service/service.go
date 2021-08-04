@@ -1,4 +1,5 @@
 // Copyright 2021 Zenauth Ltd.
+// SPDX-License-Identifier: Apache-2.0
 
 package service
 
@@ -18,9 +19,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type principalKeyType struct{}
+type authCtxKeyType struct{}
 
-var principalKey = principalKeyType{}
+var authCtxKey = authCtxKeyType{}
+
+type authContext struct {
+	username  string
+	principal *cerbos.Principal
+}
 
 const (
 	inventoryResource = "inventory"
@@ -91,13 +97,13 @@ func authenticationMiddleware(next http.Handler) http.Handler {
 		// Get the basic auth credentials from the request.
 		user, password, ok := r.BasicAuth()
 		if ok {
-			// check the password and retrieve the user record.
-			principal, err := retrievePrincipal(user, password, r)
+			// check the password and retrieve the auth context.
+			authCtx, err := buildAuthContext(user, password, r)
 			if err != nil {
 				log.Printf("Failed to authenticate user [%s]: %v", user, err)
 			} else {
 				// Add the retrieved principal to the context.
-				ctx := context.WithValue(r.Context(), principalKey, principal)
+				ctx := context.WithValue(r.Context(), authCtxKey, authCtx)
 				next.ServeHTTP(w, r.WithContext(ctx))
 
 				return
@@ -110,8 +116,8 @@ func authenticationMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// retrievePrincipal verifies the username and password and returns a new principal object.
-func retrievePrincipal(username, password string, r *http.Request) (*cerbos.Principal, error) {
+// buildAuthContext verifies the username and password and returns a new authContext object.
+func buildAuthContext(username, password string, r *http.Request) (*authContext, error) {
 	// Lookup the user from the database.
 	record, err := db.LookupUser(r.Context(), username)
 	if err != nil {
@@ -129,17 +135,17 @@ func retrievePrincipal(username, password string, r *http.Request) (*cerbos.Prin
 		WithAttr("aisles", record.Aisles).
 		WithAttr("ipAddress", r.RemoteAddr)
 
-	return principal, nil
+	return &authContext{username: username, principal: principal}, nil
 }
 
 // isAllowed is a utility function to check each action against a Cerbos policy.
 func (s *Service) isAllowed(ctx context.Context, resource *cerbos.Resource, action string) bool {
-	principal := getPrincipal(ctx)
-	if principal == nil {
+	authCtx := getAuthContext(ctx)
+	if authCtx == nil {
 		return false
 	}
 
-	allowed, err := s.cerbos.IsAllowed(ctx, principal, resource, action)
+	allowed, err := s.cerbos.IsAllowed(ctx, authCtx.principal, resource, action)
 	if err != nil {
 		log.Printf("ERROR: %v", err)
 		return false
@@ -148,14 +154,14 @@ func (s *Service) isAllowed(ctx context.Context, resource *cerbos.Resource, acti
 	return allowed
 }
 
-// getPrincipal retrieves the principal stored in the context by the authentication middleware.
-func getPrincipal(ctx context.Context) *cerbos.Principal {
-	p := ctx.Value(principalKey)
-	if p == nil {
+// getAuthContext retrieves the principal stored in the context by the authentication middleware.
+func getAuthContext(ctx context.Context) *authContext {
+	ac := ctx.Value(authCtxKey)
+	if ac == nil {
 		return nil
 	}
 
-	return p.(*cerbos.Principal)
+	return ac.(*authContext)
 }
 
 func (s *Service) handleOrderCreate(w http.ResponseWriter, r *http.Request) {
@@ -174,8 +180,8 @@ func (s *Service) handleOrderCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	principal := getPrincipal(r.Context())
-	orderID := s.orders.Create(principal.Id, order)
+	authCtx := getAuthContext(r.Context())
+	orderID := s.orders.Create(authCtx.username, order)
 
 	writeJSON(w, http.StatusCreated, struct {
 		OrderID uint64 `json:"orderID"`
@@ -414,7 +420,6 @@ func (s *Service) handleInventoryPick(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resource := toInventoryResource(record).WithAttr("pickQuantity", pickQty)
-	fmt.Printf("%+v\n", resource)
 	if !s.isAllowed(r.Context(), resource, "PICK") {
 		writeMessage(w, http.StatusForbidden, "Operation not allowed")
 		return

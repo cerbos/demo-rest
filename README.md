@@ -35,7 +35,7 @@ The example application is a simple REST API exposed by a fictional e-commmerce 
 | `GET /store/order/{orderID}`  | View the order | Customers can only view their own orders. Store employees can view any order. |
 | `POST /store/order/{orderID}` | Update the order | Customers can update their own orders as long as the status is `PENDING` |
 | `DELETE /store/order/{orderID}` | Cancel the order | Customers can cancel their own orders as long the status is `PENDING` |
-| `POST /backoffice/order/{orderID}/status/{status}` | Update order status | Pickers can change status from `PENDING` to `PICKING` and `PICKING` to `PICKED`. Dispatchers can change status from `PICKED` to `DISPATCHED`. Managers can change the status to anything. | 
+| `POST /backoffice/order/{orderID}/status/{status}` | Update order status | Pickers can change status from `PENDING` to `PICKING` and `PICKING` to `PICKED`. Dispatchers can change status from `PICKED` to `DISPATCHED`. Managers can change the status to anything. |
 | `PUT /backoffice/inventory` | Add new item to inventory | Only buyers who are in charge of that category or managers can add new items |
 | `GET /backoffice/inventory/{itemID}` | View item | Any employee can view inventory items |
 | `POST /backoffice/inventory/{itemID}` | Update item | Buyers who are in charge of that category can update the item provided that the new price is within 10% of the previous price. Managers can update without any restrictions |
@@ -44,7 +44,7 @@ The example application is a simple REST API exposed by a fictional e-commmerce 
 | `POST /backoffice/inventory/{itemID}/pick/{quantity}` | Pick stock | Only pickers and managers can pick stock |
 
 
-The Cerbos policies for the service are in the `cerbos/policies` directory. 
+The Cerbos policies for the service are in the `cerbos/policies` directory.
 
 - `store_roles.yaml`: A derived roles definition which defines `order-owner` derived role to identify when someone is accessing their own order.
 - `order_resource.yaml`: A resource policy for the `order` resource encapsulating the rules listed in the table above.
@@ -79,7 +79,7 @@ docker-compose up
 **Adam tries to create an order with a single item**
 
 ```sh
-curl -i -u adam:adamsStrongPassword -XPUT http://localhost:9999/store/order -d {"items": {"eggs": 12}}
+curl -i -u adam:adamsStrongPassword -XPUT http://localhost:9999/store/order -d '{"items": {"eggs": 12}}'
 ```
 ```
 {
@@ -90,7 +90,7 @@ curl -i -u adam:adamsStrongPassword -XPUT http://localhost:9999/store/order -d {
 **Adam has enough items in the order**
 
 ```sh
-curl -i -u adam:adamsStrongPassword -XPUT http://localhost:9999/store/order -d {"items": {"eggs": 12, "milk": 1}}
+curl -i -u adam:adamsStrongPassword -XPUT http://localhost:9999/store/order -d '{"items": {"eggs": 12, "milk": 1}}'
 ```
 ```
 {
@@ -146,7 +146,7 @@ curl -i -u bella:bellasStrongPassword -XGET http://localhost:9999/store/order/1
 **Adam can update his pending order**
 
 ```sh
-curl -i -u adam:adamsStrongPassword -XPOST http://localhost:9999/store/order/1 -d {"items": {"eggs": 24, "milk": 1, "bread": 1}}
+curl -i -u adam:adamsStrongPassword -XPOST http://localhost:9999/store/order/1 -d '{"items": {"eggs": 24, "milk": 1, "bread": 1}}'
 ```
 ```
 {
@@ -179,7 +179,7 @@ curl -i -u charlie:charliesStrongPassword -XPOST http://localhost:9999/backoffic
 **Adam cannot update his order because it is not pending**
 
 ```sh
-curl -i -u adam:adamsStrongPassword -XPOST http://localhost:9999/store/order/1 -d {"items": {"eggs": 24, "milk": 1, "bread": 1}}
+curl -i -u adam:adamsStrongPassword -XPOST http://localhost:9999/store/order/1 -d '{"items": {"eggs": 24, "milk": 1, "bread": 1}}'
 ```
 ```
 {
@@ -190,7 +190,7 @@ curl -i -u adam:adamsStrongPassword -XPOST http://localhost:9999/store/order/1 -
 **Florence can add an item to the bakery aisle**
 
 ```sh
-curl -i -u florence:florencesStrongPassword -XPUT http://localhost:9999/backoffice/inventory -d {"id":"white_bread", "aisle":"bakery", "price":110}
+curl -i -u florence:florencesStrongPassword -XPUT http://localhost:9999/backoffice/inventory -d '{"id":"white_bread", "aisle":"bakery", "price":110}'
 ```
 ```
 {
@@ -201,7 +201,7 @@ curl -i -u florence:florencesStrongPassword -XPUT http://localhost:9999/backoffi
 **Florence cannot add an item to the dairy aisle**
 
 ```sh
-curl -i -u florence:florencesStrongPassword -XPUT http://localhost:9999/backoffice/inventory -d {"id":"skimmed_milk", "aisle":"dairy", "price":120}
+curl -i -u florence:florencesStrongPassword -XPUT http://localhost:9999/backoffice/inventory -d '{"id":"skimmed_milk", "aisle":"dairy", "price":120}'
 ```
 ```
 {
@@ -212,7 +212,7 @@ curl -i -u florence:florencesStrongPassword -XPUT http://localhost:9999/backoffi
 **Florence can increase the price of an item up to 10%**
 
 ```sh
-curl -i -u florence:florencesStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":120}
+curl -i -u florence:florencesStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread -d '{"id":"white_bread", "aisle":"bakery", "price":120}'
 ```
 ```
 {
@@ -223,7 +223,7 @@ curl -i -u florence:florencesStrongPassword -XPOST http://localhost:9999/backoff
 **Florence cannot increase the price of an item more than 10%**
 
 ```sh
-curl -i -u florence:florencesStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":220}
+curl -i -u florence:florencesStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread -d '{"id":"white_bread", "aisle":"bakery", "price":220}'
 ```
 ```
 {
@@ -234,7 +234,7 @@ curl -i -u florence:florencesStrongPassword -XPOST http://localhost:9999/backoff
 **Bella can increase the price of an item by any amount**
 
 ```sh
-curl -i -u bella:bellasStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread -d {"id":"white_bread", "aisle":"bakery", "price":220}
+curl -i -u bella:bellasStrongPassword -XPOST http://localhost:9999/backoffice/inventory/white_bread -d '{"id":"white_bread", "aisle":"bakery", "price":220}'
 ```
 ```
 {

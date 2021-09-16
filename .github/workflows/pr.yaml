@@ -13,5 +13,5 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Run Cerbos compile
-        uses: ./.github/actions/cerbos
+        uses: .github/actions/cerbos
         id: cerbos

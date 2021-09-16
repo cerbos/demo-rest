@@ -1,0 +1,9 @@
+---
+name: 'cerbos'
+description: 'Cerbos compile and test'
+runs:
+  using: 'docker'
+  image: 'docker://ghcr.io/cerbos/cerbos:0.6.0'
+  args:
+    - 'compile'
+    - '${{ env.GITHUB_WORKSPACE }}/cerbos/policies'

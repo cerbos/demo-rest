@@ -15,3 +15,5 @@ jobs:
       - name: Run Cerbos compile
         uses: ./.github/actions/cerbos
         id: cerbos
+        with:
+          policyDir: cerbos/policies

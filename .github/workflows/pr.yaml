@@ -12,8 +12,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Run Cerbos compile
-        uses: ./.github/actions/cerbos
-        id: cerbos
+      - name: Setup Cerbos
+        uses: cerbos/cerbos-setup-action@v1
+
+      - name: Compile policies
+        uses: cerbos/cerbos-compile-action@v1
         with:
           policyDir: cerbos/policies

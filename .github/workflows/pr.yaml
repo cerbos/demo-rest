@@ -18,4 +18,4 @@ jobs:
       - name: Compile policies
         uses: cerbos/cerbos-compile-action@v1
         with:
-          policyDir: policies
+          policyDir: cerbos/policies

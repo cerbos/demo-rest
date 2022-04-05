@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/cerbos/cerbos/client"
 	cerbos "github.com/cerbos/cerbos/client"
 	"github.com/cerbos/demo-rest/db"
 	"github.com/gorilla/handlers"
@@ -140,12 +141,12 @@ func buildAuthContext(username, password string, r *http.Request) (*authContext,
 
 // isAllowed is a utility function to check each action against a Cerbos policy.
 func (s *Service) isAllowed(ctx context.Context, resource *cerbos.Resource, action string) bool {
-	authCtx := getAuthContext(ctx)
+	authCtx := s.principalContext(ctx)
 	if authCtx == nil {
 		return false
 	}
 
-	allowed, err := s.cerbos.IsAllowed(ctx, authCtx.principal, resource, action)
+	allowed, err := authCtx.IsAllowed(ctx, resource, action)
 	if err != nil {
 		log.Printf("ERROR: %v", err)
 		return false
@@ -154,14 +155,14 @@ func (s *Service) isAllowed(ctx context.Context, resource *cerbos.Resource, acti
 	return allowed
 }
 
-// getAuthContext retrieves the principal stored in the context by the authentication middleware.
-func getAuthContext(ctx context.Context) *authContext {
-	ac := ctx.Value(authCtxKey)
-	if ac == nil {
-		return nil
+// principalContext retrieves the principal stored in the context by the authentication middleware.
+func (s *Service) principalContext(ctx context.Context) client.PrincipalContext {
+	actx := getAuthContext(ctx)
+	if actx == nil {
+		log.Fatal("ERROR: auth context is nil")
 	}
 
-	return ac.(*authContext)
+	return s.cerbos.WithPrincipal(actx.principal)
 }
 
 func (s *Service) handleOrderCreate(w http.ResponseWriter, r *http.Request) {
@@ -180,12 +181,30 @@ func (s *Service) handleOrderCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authCtx := getAuthContext(r.Context())
-	orderID := s.orders.Create(authCtx.username, order)
+	username := getCurrentUser(r.Context())
+	orderID := s.orders.Create(username, order)
 
 	writeJSON(w, http.StatusCreated, struct {
 		OrderID uint64 `json:"orderID"`
 	}{OrderID: orderID})
+}
+
+func getCurrentUser(ctx context.Context) string {
+	actx := getAuthContext(ctx)
+	if actx == nil {
+		return ""
+	}
+
+	return actx.username
+}
+
+func getAuthContext(ctx context.Context) *authContext {
+	ac := ctx.Value(authCtxKey)
+	if ac == nil {
+		return nil
+	}
+
+	return ac.(*authContext)
 }
 
 func (s *Service) handleOrderUpdate(w http.ResponseWriter, r *http.Request) {

@@ -16,7 +16,6 @@ archives:
 dockers:
   - image_templates:
       - "ghcr.io/cerbos/demo-rest:{{ .Version }}-amd64"
-      - "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}-amd64"
     goarch: amd64
     use: buildx
     build_flag_templates:
@@ -24,7 +23,6 @@ dockers:
 
   - image_templates:
       - "ghcr.io/cerbos/demo-rest:{{ .Version }}-arm64"
-      - "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}-arm64"
     goarch: arm64
     use: buildx
     build_flag_templates:
@@ -34,10 +32,6 @@ docker_manifests:
     image_templates:
       - "ghcr.io/cerbos/demo-rest:{{ .Version }}-amd64"
       - "ghcr.io/cerbos/demo-rest:{{ .Version }}-arm64"
-  - name_template: "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}"
-    image_templates:
-      - "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}-amd64"
-      - "cerbos.jfrog.io/containers/demo-rest:{{ .Version }}-arm64"
 checksum:
   disable: true
 changelog:

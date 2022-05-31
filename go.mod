@@ -1,6 +1,6 @@
 module github.com/cerbos/demo-rest
 
-go 1.17
+go 1.18
 
 require (
 	github.com/cerbos/cerbos v0.17.0

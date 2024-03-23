@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/cerbos/cerbos/client"
-	cerbos "github.com/cerbos/cerbos/client"
+	"github.com/cerbos/cerbos-sdk-go/cerbos"
+	client "github.com/cerbos/cerbos-sdk-go/cerbos"
 	"github.com/cerbos/demo-rest/db"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"

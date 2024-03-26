@@ -1,9 +1,9 @@
 module github.com/cerbos/demo-rest
 
-go 1.18
+go 1.22
 
 require (
-	github.com/cerbos/cerbos-sdk-go/cerbos v0.2.3
+	github.com/cerbos/cerbos-sdk-go v0.2.3
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/tidwall/gjson v1.14.1 // indirect

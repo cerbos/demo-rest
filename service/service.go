@@ -52,7 +52,7 @@ func toInventoryResource(i db.InventoryRecord) *cerbos.Resource {
 
 // Service implements the store API.
 type Service struct {
-	cerbos    cerbos.Client
+	cerbos    cerbos.GRPCClient
 	orders    *db.OrderDB
 	inventory *db.Inventory
 }

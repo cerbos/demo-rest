@@ -13,7 +13,6 @@ import (
 	"strconv"
 
 	"github.com/cerbos/cerbos-sdk-go/cerbos"
-	client "github.com/cerbos/cerbos-sdk-go/cerbos"
 	"github.com/cerbos/demo-rest/db"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -156,7 +155,7 @@ func (s *Service) isAllowed(ctx context.Context, resource *cerbos.Resource, acti
 }
 
 // principalContext retrieves the principal stored in the context by the authentication middleware.
-func (s *Service) principalContext(ctx context.Context) client.PrincipalContext {
+func (s *Service) principalContext(ctx context.Context) cerbos.PrincipalContext {
 	actx := getAuthContext(ctx)
 	if actx == nil {
 		log.Fatal("ERROR: auth context is nil")

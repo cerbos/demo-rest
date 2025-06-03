@@ -72,13 +72,10 @@ Use `docker-compose` to start the demo. Here Cerbos is configured to run as a si
 docker-compose up
 ```
 
-Alternatively, if you have a Go 1.17+ development environment, you can use `cerbos run` to launch the server as follows:
+Alternatively, if you have a Go toolchain installed and have the Cerbos binary installed using one of the methods listed on https://docs.cerbos.dev/cerbos/latest/installation/binary, you can use `cerbos run` to launch the server as follows:
 
 ```sh
-# Install the Cerbos binary to $GOBIN which must be in your path.
-go install github.com/cerbos/cerbos/cmd/cerbos@latest
-
-# Launch Cerbos and the test server
+# Launch Cerbos and the test server. Assumes that the cerbos binary is in your $PATH.
 cerbos run --set=storage.disk.directory=cerbos/policies -- go run main.go
 ```
 
